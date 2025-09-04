@@ -212,7 +212,7 @@ actionlint --version
 ## 📞 Soporte
 
 Si tienes dudas sobre:
-- **Especificaciones técnicas**: Revisa la documentación en `/docs`
+- **Especificaciones técnicas**: Lee detenidamente los README
 - **Problemas de setup**: Ejecuta scripts de validación
 - **Interpretación de requisitos**: Usa tu mejor criterio y documenta decisiones
 
