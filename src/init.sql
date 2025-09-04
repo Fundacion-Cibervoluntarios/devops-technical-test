@@ -1,4 +1,4 @@
--- Initial database setup
+-- Initial database setup for DevOps test
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -15,3 +15,12 @@ INSERT INTO products (name, price, category) VALUES
 ('Terraform Guide', 39.99, 'books'),
 ('Azure Certification', 199.99, 'courses')
 ON CONFLICT DO NOTHING;
+
+-- Simple cart table (optional)
+CREATE TABLE IF NOT EXISTS cart_items (
+    id SERIAL PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL,
+    product_id INTEGER REFERENCES products(id),
+    quantity INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
