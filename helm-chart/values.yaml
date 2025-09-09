@@ -1,223 +1,721 @@
 # Default values for ecommerce-app Helm chart
 
-# TODO: Configure global settings
+# # TODO: Configure global settings
+# global:
+#   # Azure-specific configuration
+#   azure:
+#     # tenantId: ""
+#     # subscriptionId: ""
+#     # resourceGroup: ""
+#     # keyVaultName: ""
+  
+#   # Image registry configuration  
+#   imageRegistry: # TODO: Set your ACR registry URL
+#   # imagePullSecrets: []
+
+# 🎓 SOLUCIÓN: Global settings configurados
 global:
   # Azure-specific configuration
   azure:
-    # tenantId: ""
-    # subscriptionId: ""
-    # resourceGroup: ""
-    # keyVaultName: ""
+    tenantId: "${AZURE_TENANT_ID}"  # Se inyecta desde CI/CD
+    subscriptionId: "${AZURE_SUBSCRIPTION_ID}"
+    resourceGroup: "rg-ecommerce-dev"
+    keyVaultName: "kv-ecommerce-dev"
+    location: "West Europe"
   
   # Image registry configuration  
-  imageRegistry: # TODO: Set your ACR registry URL
-  # imagePullSecrets: []
+  imageRegistry: "acrecommercedev.azurecr.io"  # Tu ACR desde Terraform
+  imagePullSecrets: []  # No necesario con managed identity
+  
+  # 🎓 EXTRA: Settings globales útiles
+  environment: "dev"  # dev, staging, prod
+  domain: "ecommerce.example.com"
+  monitoringEnabled: true
 
-# TODO: Configure images
+# ConfigMap settings
+configMap:
+  enabled: true
+  logLevel: "info"
+  additionalData: {}
+
+# Namespace configuration
+namespace: "ecommerce-app"
+
+# Service Account
+serviceAccount:
+  create: true
+  name: "ecommerce-sa"
+  annotations:
+    azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
+
+# Image pull secrets (if not using managed identity)
+imagePullSecrets: []
+  
+# # TODO: Configure images
+# images:
+#   frontend:
+#     repository: # TODO: Set frontend image repository
+#     tag: # TODO: Set image tag (use "latest" for now)
+#     pullPolicy: IfNotPresent
+    
+#   backend:
+#     repository: # TODO: Set backend image repository  
+#     tag: # TODO: Set image tag
+#     pullPolicy: IfNotPresent
+
+# 🎓 SOLUCIÓN: Configuración de imágenes
 images:
   frontend:
-    repository: # TODO: Set frontend image repository
-    tag: # TODO: Set image tag (use "latest" for now)
+    repository: "ecommerce-frontend"  # Se combina con global.imageRegistry
+    tag: "1.0.0"  # NO usar "latest" en producción, por retention policy
     pullPolicy: IfNotPresent
     
   backend:
-    repository: # TODO: Set backend image repository  
-    tag: # TODO: Set image tag
+    repository: "ecommerce-backend"
+    tag: "1.0.0"
     pullPolicy: IfNotPresent
 
-# TODO: Configure frontend deployment
+# # TODO: Configure frontend deployment
+# frontend:
+#   enabled: true
+#   replicaCount: 3
+  
+#   # TODO: Configure service
+#   service:
+#     type: ClusterIP
+#     port: 80
+#     targetPort: 3000
+    
+#   # TODO: Configure resources
+#   resources:
+#     requests:
+#       # TODO: Set CPU and memory requests
+#     limits:
+#       # TODO: Set CPU and memory limits
+      
+#   # TODO: Configure health checks  
+#   livenessProbe:
+#     # TODO: Configure liveness probe
+#   readinessProbe:  
+#     # TODO: Configure readiness probe
+#   startupProbe:
+#     # TODO: Configure startup probe
+    
+#   # TODO: Configure environment variables
+#   env: {}
+#     # REACT_APP_API_URL: ""
+#     # REACT_APP_ENVIRONMENT: ""
+    
+#   # TODO: Configure autoscaling
+#   autoscaling:
+#     enabled: true
+#     # minReplicas: 3
+#     # maxReplicas: 10
+#     # targetCPUUtilizationPercentage: 70
+
+# 🎓 SOLUCIÓN: Frontend deployment completo
 frontend:
   enabled: true
   replicaCount: 3
   
-  # TODO: Configure service
+  # Service configuration
   service:
     type: ClusterIP
     port: 80
     targetPort: 3000
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "false"
     
-  # TODO: Configure resources
+  # Resources según los requisitos del README
   resources:
     requests:
-      # TODO: Set CPU and memory requests
+      cpu: "100m"     # 100 milicores
+      memory: "128Mi"  # 128 MB
     limits:
-      # TODO: Set CPU and memory limits
+      cpu: "200m"     # 200 milicores  
+      memory: "256Mi"  # 256 MB
       
-  # TODO: Configure health checks  
+  # Health checks completos
   livenessProbe:
-    # TODO: Configure liveness probe
-  readinessProbe:  
-    # TODO: Configure readiness probe
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+    
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+    
   startupProbe:
-    # TODO: Configure startup probe
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 30  # 30 intentos como pide el README
     
-  # TODO: Configure environment variables
-  env: {}
-    # REACT_APP_API_URL: ""
-    # REACT_APP_ENVIRONMENT: ""
+  # Environment variables
+  env:
+    REACT_APP_API_URL: "http://backend-service"
+    REACT_APP_ENVIRONMENT: "{{ .Values.global.environment }}"
+    REACT_APP_VERSION: "{{ .Values.images.frontend.tag }}"
     
-  # TODO: Configure autoscaling
+  # Autoscaling configuration
   autoscaling:
     enabled: true
-    # minReplicas: 3
-    # maxReplicas: 10
-    # targetCPUUtilizationPercentage: 70
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
-# TODO: Configure backend deployment  
+# # TODO: Configure backend deployment  
+# backend:
+#   enabled: true
+#   replicaCount: 2
+  
+#   # TODO: Configure service
+#   service:
+#     type: ClusterIP
+#     port: 80
+#     targetPort: 8080
+    
+#   # TODO: Configure resources
+#   resources:
+#     requests:
+#       # TODO: Set CPU and memory requests
+#     limits:
+#       # TODO: Set CPU and memory limits
+      
+#   # TODO: Configure health checks
+#   livenessProbe:
+#     # TODO: Configure liveness probe
+#   readinessProbe:
+#     # TODO: Configure readiness probe  
+#   startupProbe:
+#     # TODO: Configure startup probe
+    
+#   # TODO: Configure environment variables
+#   env: {}
+#     # DATABASE_URL: ""
+#     # REDIS_URL: ""  
+#     # NODE_ENV: ""
+    
+#   # TODO: Configure autoscaling
+#   autoscaling:
+#     enabled: true
+#     # minReplicas: 2
+#     # maxReplicas: 5
+#     # targetCPUUtilizationPercentage: 70
+
+# 🎓 SOLUCIÓN: Backend deployment completo
 backend:
   enabled: true
   replicaCount: 2
   
-  # TODO: Configure service
+  # Service configuration
   service:
     type: ClusterIP
     port: 80
     targetPort: 8080
+    annotations: {}
     
-  # TODO: Configure resources
+  # Resources según los requisitos del README
   resources:
     requests:
-      # TODO: Set CPU and memory requests
+      cpu: "200m"     # 200 milicores
+      memory: "256Mi"  # 256 MB
     limits:
-      # TODO: Set CPU and memory limits
+      cpu: "500m"     # 500 milicores
+      memory: "512Mi"  # 512 MB
       
-  # TODO: Configure health checks
+  # Health checks completos
   livenessProbe:
-    # TODO: Configure liveness probe
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+    
   readinessProbe:
-    # TODO: Configure readiness probe  
+    httpGet:
+      path: /ready
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+    
   startupProbe:
-    # TODO: Configure startup probe
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 20  # 20 intentos como pide el README
     
-  # TODO: Configure environment variables
-  env: {}
-    # DATABASE_URL: ""
-    # REDIS_URL: ""  
-    # NODE_ENV: ""
+  # Environment variables (los secretos vienen de Azure Key Vault)
+  env:
+    NODE_ENV: "production"
+    PORT: "8080"
+    LOG_LEVEL: "info"
+    # DATABASE_URL viene de Azure Key Vault
+    # REDIS_URL se construye dinámicamente
     
-  # TODO: Configure autoscaling
+  # Autoscaling configuration
   autoscaling:
     enabled: true
-    # minReplicas: 2
-    # maxReplicas: 5
-    # targetCPUUtilizationPercentage: 70
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
-# TODO: Configure Redis
+# # TODO: Configure Redis
+# redis:
+#   enabled: true
+  
+#   # TODO: Configure Redis StatefulSet
+#   image:
+#     repository: redis
+#     tag: "7-alpine"
+#     pullPolicy: IfNotPresent
+    
+#   # TODO: Configure service
+#   service:
+#     type: ClusterIP  
+#     port: 6379
+    
+#   # TODO: Configure persistence
+#   persistence:
+#     enabled: true
+#     # storageClass: "managed-premium"
+#     # size: 1Gi
+    
+#   # TODO: Configure resources
+#   resources:
+#     requests:
+#       # TODO: Set CPU and memory requests
+#     limits:
+#       # TODO: Set CPU and memory limits
+
+# 🎓 SOLUCIÓN: Redis configuration completa
 redis:
   enabled: true
   
-  # TODO: Configure Redis StatefulSet
+  # Redis image configuration
   image:
     repository: redis
     tag: "7-alpine"
     pullPolicy: IfNotPresent
     
-  # TODO: Configure service
+  # Service configuration
   service:
-    type: ClusterIP  
+    type: ClusterIP
     port: 6379
+    targetPort: 6379
     
-  # TODO: Configure persistence
+  # Persistence configuration
   persistence:
     enabled: true
-    # storageClass: "managed-premium"
-    # size: 1Gi
+    storageClass: "managed-premium"  # Azure managed disk
+    size: 1Gi
+    accessMode: ReadWriteOnce
+    # 🎓 NOTA: En producción, considerar usar Azure Redis Cache
     
-  # TODO: Configure resources
+  # Resources según requisitos
   resources:
     requests:
-      # TODO: Set CPU and memory requests
+      cpu: "100m"
+      memory: "128Mi"
     limits:
-      # TODO: Set CPU and memory limits
+      cpu: "200m"
+      memory: "256Mi"
+      
+  # Redis configuration
+  config:
+    maxmemory: "256mb"
+    maxmemory-policy: "allkeys-lru"
+    save: "900 1 300 10 60 10000"  # Persistence settings
+    
+  # Security
+  auth:
+    enabled: true
+    # Password viene de Azure Key Vault
 
-# TODO: Configure ingress
+# # TODO: Configure ingress
+# ingress:
+#   enabled: true
+#   # className: "azure-application-gateway"
+  
+#   # TODO: Configure annotations for Application Gateway
+#   annotations: {}
+#     # appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+#     # appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    
+#   # TODO: Configure hosts and paths
+#   hosts: []
+#     # - host: ecommerce.example.com
+#     #   paths:
+#     #     - path: /
+#     #       pathType: Prefix
+#     #       service:
+#     #         name: frontend
+#     #         port: 80
+#     #     - path: /api
+#     #       pathType: Prefix  
+#     #       service:
+#     #         name: backend
+#     #         port: 80
+            
+#   # TODO: Configure TLS
+#   tls: []
+#     # - secretName: ecommerce-tls
+#     #   hosts:
+#     #     - ecommerce.example.com
+
+# 🎓 SOLUCIÓN: Ingress configuration para Application Gateway
 ingress:
   enabled: true
-  # className: "azure-application-gateway"
+  className: "azure-application-gateway"
   
-  # TODO: Configure annotations for Application Gateway
-  annotations: {}
-    # appgw.ingress.kubernetes.io/backend-path-prefix: "/"
-    # appgw.ingress.kubernetes.io/ssl-redirect: "true"
+  # Annotations específicas para Application Gateway Ingress Controller
+  annotations:
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/use-private-ip: "false"
+    appgw.ingress.kubernetes.io/backend-protocol: "http"
+    appgw.ingress.kubernetes.io/cookie-based-affinity: "false"
+    appgw.ingress.kubernetes.io/request-timeout: "30"
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Para SSL automático
     
-  # TODO: Configure hosts and paths
-  hosts: []
-    # - host: ecommerce.example.com
-    #   paths:
-    #     - path: /
-    #       pathType: Prefix
-    #       service:
-    #         name: frontend
-    #         port: 80
-    #     - path: /api
-    #       pathType: Prefix  
-    #       service:
-    #         name: backend
-    #         port: 80
+  # Hosts configuration
+  hosts:
+    - host: "{{ .Values.global.domain }}"
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 80
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 80
+        - path: /health
+          pathType: Exact
+          service:
+            name: backend
+            port: 80
             
-  # TODO: Configure TLS
-  tls: []
-    # - secretName: ecommerce-tls
-    #   hosts:
-    #     - ecommerce.example.com
+  # TLS configuration
+  tls:
+    - secretName: ecommerce-tls
+      hosts:
+        - "{{ .Values.global.domain }}"
 
-# TODO: Configure Azure Key Vault integration
+# # TODO: Configure Azure Key Vault integration
+# azureKeyVault:
+#   enabled: true
+#   # secretProviderClassName: "azure-keyvault-secrets"
+#   # keyVaultName: ""
+#   # secrets: []
+#     # - secretName: "database-password"
+#     #   keyVaultKey: "db-password"
+#     # - secretName: "app-secret-key"
+#     #   keyVaultKey: "app-secret"
+
+# 🎓 SOLUCIÓN: Azure Key Vault integration
 azureKeyVault:
   enabled: true
-  # secretProviderClassName: "azure-keyvault-secrets"
-  # keyVaultName: ""
-  # secrets: []
-    # - secretName: "database-password"
-    #   keyVaultKey: "db-password"
-    # - secretName: "app-secret-key"
-    #   keyVaultKey: "app-secret"
+  secretProviderClassName: "azure-keyvault-secrets"
+  keyVaultName: "{{ .Values.global.azure.keyVaultName }}"
+  tenantId: "{{ .Values.global.azure.tenantId }}"
+  
+  # Secrets to sync from Key Vault
+  secrets:
+    - secretName: "database-password"
+      keyVaultKey: "postgres-admin-password"
+      secretType: "Opaque"
+    - secretName: "redis-password"
+      keyVaultKey: "redis-password"
+      secretType: "Opaque"
+    - secretName: "app-secret-key"
+      keyVaultKey: "app-secret-key"
+      secretType: "Opaque"
+    - secretName: "jwt-secret"
+      keyVaultKey: "jwt-secret"
+      secretType: "Opaque"
+      
+  # Use workload identity
+  usePodIdentity: false
+  useVMManagedIdentity: true
 
-# TODO: Configure database connection
+# # TODO: Configure database connection
+# database:
+#   # host: ""
+#   # port: 5432
+#   # name: "ecommerce_db"
+#   # username: "pgadmin"
+#   # passwordSecretKey: "database-password"
+
+# 🎓 SOLUCIÓN: Database configuration
 database:
-  # host: ""
-  # port: 5432
-  # name: "ecommerce_db"
-  # username: "pgadmin"
-  # passwordSecretKey: "database-password"
+  host: "psql-ecommerce-dev.postgres.database.azure.com"
+  port: 5432
+  name: "ecommerce_db"
+  username: "pgadmin"
+  passwordSecretKey: "database-password"  # Viene de Key Vault
+  sslMode: "require"  # Importante para Azure PostgreSQL
+  poolSize: 10
+  connectionTimeout: 30
 
-# TODO: Configure monitoring
+# # TODO: Configure monitoring
+# monitoring:
+#   enabled: true
+#   # applicationInsights:
+#   #   connectionString: ""
+#   # serviceMonitor:
+#   #   enabled: true
+#   #   interval: 30s
+
+# 🎓 SOLUCIÓN: Monitoring configuration
 monitoring:
   enabled: true
-  # applicationInsights:
-  #   connectionString: ""
-  # serviceMonitor:
-  #   enabled: true
-  #   interval: 30s
+  applicationInsights:
+    connectionString: "{{ .Values.global.azure.appInsightsConnectionString }}"
+    enabled: true
+    
+  # Prometheus ServiceMonitor para métricas
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      release: prometheus
+      
+  # Grafana dashboards
+  dashboards:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+      
+  # Alerting rules
+  alerts:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
 
-# TODO: Configure security contexts
-securityContext:
-  # runAsNonRoot: true
-  # runAsUser: 1001
-  # fsGroup: 1001
-  # readOnlyRootFilesystem: true
+# # TODO: Configure security contexts
+# securityContext:
+#   # runAsNonRoot: true
+#   # runAsUser: 1001
+#   # fsGroup: 1001
+#   # readOnlyRootFilesystem: true
   
-podSecurityContext:
-  # fsGroup: 1001
-  # runAsNonRoot: true
-  # runAsUser: 1001
+# podSecurityContext:
+#   # fsGroup: 1001
+#   # runAsNonRoot: true
+#   # runAsUser: 1001
 
-# TODO: Configure network policies
+# 🎓 SOLUCIÓN: Security contexts (CRÍTICO para seguridad)
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
+  seccompProfile:
+    type: RuntimeDefault
+    
+podSecurityContext:
+  fsGroup: 1001
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  supplementalGroups: [1001]
+
+# # TODO: Configure network policies
+# networkPolicies:
+#   enabled: true
+
+# 🎓 SOLUCIÓN: Network policies configuration
 networkPolicies:
   enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  # Define allowed traffic
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              name: ecommerce-app
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
+          
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53  # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: ecommerce-app
+      ports:
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 6379  # Redis
 
-# TODO: Configure pod disruption budgets
+# # TODO: Configure pod disruption budgets
+# podDisruptionBudget:
+#   enabled: true
+#   # maxUnavailable: 1
+
+# 🎓 SOLUCIÓN: Pod disruption budgets para alta disponibilidad
 podDisruptionBudget:
   enabled: true
-  # maxUnavailable: 1
+  frontend:
+    minAvailable: 2  # Siempre al menos 2 pods frontend
+    maxUnavailable: 1
+  backend:
+    minAvailable: 1  # Siempre al menos 1 pod backend
+    maxUnavailable: 1
+  redis:
+    minAvailable: 1
+    maxUnavailable: 0  # Redis no puede estar no disponible
 
-# TODO: Configure service accounts
+# # TODO: Configure service accounts
+# serviceAccount:
+#   create: true
+#   # name: ""
+#   annotations: {}
+#     # azure.workload.identity/client-id: ""
+
+# 🎓 SOLUCIÓN: Service account con workload identity
 serviceAccount:
   create: true
-  # name: ""
-  annotations: {}
-    # azure.workload.identity/client-id: ""
+  name: "ecommerce-app-sa"
+  automountServiceAccountToken: true
+  annotations:
+    azure.workload.identity/client-id: "{{ .Values.global.azure.clientId }}"
+    azure.workload.identity/tenant-id: "{{ .Values.global.azure.tenantId }}"
+  labels:
+    azure.workload.identity/use: "true"
 
-# TODO: Configure node selectors and tolerations  
-nodeSelector: {}
-tolerations: []
-affinity: {}
+# # TODO: Configure node selectors and tolerations  
+# nodeSelector: {}
+# tolerations: []
+# affinity: {}
+
+# 🎓 SOLUCIÓN: Node selectors, tolerations y affinity
+nodeSelector:
+  nodepool-type: "user"  # Desplegamos en user node pool
+  
+tolerations:
+  - key: "kubernetes.azure.com/scalesetpriority"
+    operator: "Equal"
+    value: "spot"
+    effect: "NoSchedule"
+    
+affinity:
+  # Pod anti-affinity para distribuir pods
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - frontend
+                  - backend
+          topologyKey: kubernetes.io/hostname
+  
+  # Node affinity para preferir nodos en la misma zona
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 50
+        preference:
+          matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - westeurope-1
+                - westeurope-2
+
+# 🎓 EXTRAS: Configuraciones adicionales 
+
+# Rollout strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Pod topology spread constraints
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: ecommerce
+
+# Priority classes
+priorityClassName: "high-priority"
+
+# Lifecycle hooks
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 15"]
+      
+# Volume mounts para read-only filesystem
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: cache
+    mountPath: /app/.cache
+    
+volumes:
+  - name: tmp
+    emptyDir: {}
+  - name: cache
+    emptyDir: {}

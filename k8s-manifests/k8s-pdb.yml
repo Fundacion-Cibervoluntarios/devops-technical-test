@@ -1,0 +1,75 @@
+# 🎓 Pod Disruption Budgets - Alta Disponibilidad
+# Garantiza disponibilidad mínima durante mantenimiento según README
+
+---
+# Frontend PodDisruptionBudget
+# Mantiene al menos 2 pods disponibles durante disrupciones
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: frontend
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: frontend
+spec:
+  # README especifica: maxUnavailable: 1 para frontend
+  maxUnavailable: 1  # Máximo 1 pod no disponible
+  
+  selector:
+    matchLabels:
+      app: ecommerce
+      component: frontend
+      
+  # 🎓 Unhealthy pod eviction policy (Kubernetes 1.26+)
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+  
+---
+# Backend PodDisruptionBudget
+# Mantiene al menos 1 pod disponible durante disrupciones
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: backend
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: backend
+spec:
+  # README especifica: maxUnavailable: 1 para backend
+  maxUnavailable: 1  # Máximo 1 pod no disponible
+  
+  selector:
+    matchLabels:
+      app: ecommerce
+      component: backend
+      
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+  
+---
+# Redis PodDisruptionBudget
+# Redis siempre debe estar disponible
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: redis
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: redis
+spec:
+  # Redis no puede estar no disponible
+  minAvailable: 1  # Siempre al menos 1 pod disponible
+  
+  selector:
+    matchLabels:
+      app: ecommerce
+      component: redis
+      
+  unhealthyPodEvictionPolicy: AlwaysAllow  # Permitir evicción si está unhealthy

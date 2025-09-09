@@ -1,0 +1,167 @@
+# 🎓 Redis StatefulSet - Cache con persistencia
+# Configuración coherente con Helm values.yaml y README requisitos
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ecommerce-redis
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: redis
+    tier: cache
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/instance: ecommerce-app
+    app.kubernetes.io/version: "7-alpine"
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  serviceName: ecommerce-redis-service
+  replicas: 1  # README: 1 réplica para Redis
+  
+  selector:
+    matchLabels:
+      app: ecommerce
+      component: redis
+      
+  # 🎓 Update strategy para StatefulSet
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+      
+  template:
+    metadata:
+      labels:
+        app: ecommerce
+        component: redis
+        tier: cache
+        version: "7-alpine"
+        app.kubernetes.io/name: ecommerce
+        app.kubernetes.io/component: redis
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6379"
+        
+    spec:
+      # 🎓 Service Account
+      serviceAccountName: ecommerce-app-sa
+      
+      # 🎓 Security Context a nivel de Pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999  # Redis user
+        runAsGroup: 999
+        fsGroup: 999
+        
+      containers:
+        - name: redis
+          # Imagen especificada en el README
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          
+          # 🎓 Redis con password desde Secret
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --maxmemory
+            - "256mb"
+            - --maxmemory-policy
+            - "allkeys-lru"
+            - --save
+            - "900 1 300 10 60 10000"  # Persistence settings
+            - --dir
+            - /data
+            
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+              
+          # 🎓 Environment Variables
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ecommerce-app-secrets
+                  key: redis-password
+                  
+          # 🎓 Resources - Exactamente como especifica el README
+          resources:
+            requests:
+              cpu: "100m"      # README: 100m
+              memory: "128Mi"  # README: 128Mi
+            limits:
+              cpu: "200m"      # README: 200m
+              memory: "256Mi"  # README: 256Mi
+              
+          # 🎓 Health Checks para Redis
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - $(REDIS_PASSWORD)
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - $(REDIS_PASSWORD)
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+            
+          # 🎓 Security Context a nivel de Container
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            readOnlyRootFilesystem: false  # Redis necesita escribir
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - SETUID
+                - SETGID
+                
+          # 🎓 Volume Mount para persistencia
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+              
+      # 🎓 Node selector (coherente con Terraform)
+      nodeSelector:
+        nodepool-type: "user"
+        
+      # 🎓 Tolerations para spot instances en dev
+      tolerations:
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+          
+  # 🎓 VolumeClaimTemplates para persistencia
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+        labels:
+          app: ecommerce
+          component: redis
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: managed-premium  # Azure Disk storage class
+        resources:
+          requests:
+            storage: 1Gi  # README: 1Gi PersistentVolume

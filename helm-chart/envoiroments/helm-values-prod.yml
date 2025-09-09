@@ -1,0 +1,209 @@
+# 🎓 Values específicos para ambiente PRODUCTION
+# Configuración robusta para alta disponibilidad y rendimiento
+
+global:
+  environment: "prod"
+  domain: "ecommerce.example.com"
+  azure:
+    resourceGroup: "rg-ecommerce-prod"
+    keyVaultName: "kv-ecommerce-prod"
+  imageRegistry: "acrecommerceprod.azurecr.io"
+
+# 🎓 Producción: máxima disponibilidad
+frontend:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "400m"
+      memory: "512Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20  # Alto límite para Black Friday
+    targetCPUUtilizationPercentage: 60  # Más agresivo
+    targetMemoryUtilizationPercentage: 70
+  
+  # 🎓 Extra health checks para prod
+  livenessProbe:
+    failureThreshold: 5  # Más tolerante en prod
+  readinessProbe:
+    successThreshold: 2  # Más estricto para estar ready
+    
+backend:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"  # 1 CPU
+      memory: "1Gi"
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  env:
+    NODE_ENV: "production"
+    LOG_LEVEL: "warn"  # Solo warnings y errores
+    ENABLE_METRICS: "true"
+    ENABLE_TRACING: "true"
+    
+redis:
+  persistence:
+    enabled: true
+    storageClass: "managed-premium-retain"  # Retain policy
+    size: "5Gi"  # Más espacio en prod
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  
+  # 🎓 Redis master-slave para HA
+  replication:
+    enabled: true
+    replicas: 2
+      
+ingress:
+  enabled: true
+  className: "azure-application-gateway"
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/waf-policy-for-path: "/waf-policy"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # 🎓 Rate limiting para producción
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+  hosts:
+    - host: "ecommerce.example.com"
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 80
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 80
+    # 🎓 WWW redirect
+    - host: "www.ecommerce.example.com"
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 80
+  tls:
+    - secretName: ecommerce-prod-tls
+      hosts:
+        - "ecommerce.example.com"
+        - "www.ecommerce.example.com"
+
+monitoring:
+  enabled: true
+  applicationInsights:
+    enabled: true
+    samplingPercentage: 100  # 100% sampling en prod
+  serviceMonitor:
+    enabled: true
+    interval: 15s  # Más frecuente en prod
+    scrapeTimeout: 10s
+  alerts:
+    enabled: true
+    rules:
+      - name: "High CPU Usage"
+        threshold: 80
+        for: "5m"
+      - name: "High Memory Usage"
+        threshold: 85
+        for: "5m"
+      - name: "Pod Restart Rate"
+        threshold: 5
+        for: "10m"
+  
+networkPolicies:
+  enabled: true  # Estricto en producción
+  denyAll: true  # Deny all by default
+  
+podDisruptionBudget:
+  enabled: true
+  frontend:
+    minAvailable: 2  # Siempre 2+ pods
+    maxUnavailable: 1
+  backend:
+    minAvailable: 2
+    maxUnavailable: 1
+  redis:
+    minAvailable: 1
+    maxUnavailable: 0  # Redis nunca down
+
+database:
+  host: "psql-ecommerce-prod.postgres.database.azure.com"
+  port: 5432
+  name: "ecommerce_prod"
+  sslMode: "require"  # SSL obligatorio
+  poolSize: 50  # Pool grande para prod
+  connectionTimeout: 10
+  idleTimeout: 30000
+  
+# 🎓 Backup configuration para prod
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # 2 AM daily
+  retention: 30  # 30 días
+
+# 🎓 Disaster recovery
+disasterRecovery:
+  enabled: true
+  geoReplication: true
+  backupRegion: "North Europe"
+
+# 🎓 Node affinity estricta para prod
+nodeSelector:
+  nodepool-type: "user"
+  environment: "production"
+  workload: "critical"
+  
+# 🎓 No spot instances en producción
+tolerations: []
+
+# 🎓 Anti-affinity estricta para distribución
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:  # Required, no preferred
+      - labelSelector:
+          matchExpressions:
+            - key: app
+              operator: In
+              values:
+                - frontend
+                - backend
+        topologyKey: kubernetes.io/hostname
+        
+# 🎓 Priority class alta para prod
+priorityClassName: "production-high"
+
+# 🎓 Security hardening para prod
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+  seLinuxOptions:
+    level: "s0:c123,c456"

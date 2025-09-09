@@ -1,0 +1,267 @@
+{{/*
+🎓 Helpers Template - Funciones reutilizables para el chart
+Este archivo define funciones que se pueden usar en todos los templates
+*/}}
+
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "ecommerce-app.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified app name.
+*/}}
+{{- define "ecommerce-app.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create chart name and version as used by the chart label.
+*/}}
+{{- define "ecommerce-app.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Common labels
+*/}}
+{{- define "ecommerce-app.labels" -}}
+helm.sh/chart: {{ include "ecommerce-app.chart" . }}
+{{ include "ecommerce-app.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+environment: {{ .Values.global.environment }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "ecommerce-app.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "ecommerce-app.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Frontend specific labels
+*/}}
+{{- define "ecommerce-app.frontend.labels" -}}
+{{ include "ecommerce-app.labels" . }}
+app.kubernetes.io/component: frontend
+tier: presentation
+{{- end }}
+
+{{/*
+Backend specific labels
+*/}}
+{{- define "ecommerce-app.backend.labels" -}}
+{{ include "ecommerce-app.labels" . }}
+app.kubernetes.io/component: backend
+tier: application
+{{- end }}
+
+{{/*
+Redis specific labels
+*/}}
+{{- define "ecommerce-app.redis.labels" -}}
+{{ include "ecommerce-app.labels" . }}
+app.kubernetes.io/component: redis
+tier: cache
+{{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "ecommerce-app.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "ecommerce-app.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the proper image registry
+*/}}
+{{- define "ecommerce-app.imageRegistry" -}}
+{{- if .Values.global.imageRegistry }}
+{{- .Values.global.imageRegistry }}
+{{- else }}
+{{- "docker.io" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the proper frontend image
+*/}}
+{{- define "ecommerce-app.frontend.image" -}}
+{{- $registry := include "ecommerce-app.imageRegistry" . }}
+{{- $repository := .Values.images.frontend.repository }}
+{{- $tag := .Values.images.frontend.tag | default .Chart.AppVersion }}
+{{- printf "%s/%s:%s" $registry $repository $tag }}
+{{- end }}
+
+{{/*
+Return the proper backend image
+*/}}
+{{- define "ecommerce-app.backend.image" -}}
+{{- $registry := include "ecommerce-app.imageRegistry" . }}
+{{- $repository := .Values.images.backend.repository }}
+{{- $tag := .Values.images.backend.tag | default .Chart.AppVersion }}
+{{- printf "%s/%s:%s" $registry $repository $tag }}
+{{- end }}
+
+{{/*
+Return the proper Redis image
+*/}}
+{{- define "ecommerce-app.redis.image" -}}
+{{- if .Values.redis.image.registry }}
+{{- printf "%s/%s:%s" .Values.redis.image.registry .Values.redis.image.repository .Values.redis.image.tag }}
+{{- else }}
+{{- printf "%s:%s" .Values.redis.image.repository .Values.redis.image.tag }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return Redis URL for backend
+*/}}
+{{- define "ecommerce-app.redisUrl" -}}
+{{- if .Values.redis.enabled }}
+{{- printf "redis://:%s@%s-redis:6379/0" .Values.redis.auth.password (include "ecommerce-app.fullname" .) }}
+{{- else }}
+{{- .Values.redis.externalUrl }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return PostgreSQL connection string
+*/}}
+{{- define "ecommerce-app.databaseUrl" -}}
+{{- $host := .Values.database.host }}
+{{- $port := .Values.database.port }}
+{{- $database := .Values.database.name }}
+{{- $username := .Values.database.username }}
+{{- $sslMode := .Values.database.sslMode | default "require" }}
+{{- printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%d/%s?sslmode=%s" $username $host $port $database $sslMode }}
+{{- end }}
+
+{{/*
+Return the configuration for imagePullSecrets
+*/}}
+{{- define "ecommerce-app.imagePullSecrets" -}}
+{{- if .Values.global.imagePullSecrets }}
+imagePullSecrets:
+{{- range .Values.global.imagePullSecrets }}
+  - name: {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return pod security context
+*/}}
+{{- define "ecommerce-app.podSecurityContext" -}}
+securityContext:
+  runAsNonRoot: {{ .Values.podSecurityContext.runAsNonRoot }}
+  runAsUser: {{ .Values.podSecurityContext.runAsUser }}
+  runAsGroup: {{ .Values.podSecurityContext.runAsGroup }}
+  fsGroup: {{ .Values.podSecurityContext.fsGroup }}
+{{- end }}
+
+{{/*
+Return container security context
+*/}}
+{{- define "ecommerce-app.containerSecurityContext" -}}
+securityContext:
+  runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+  runAsUser: {{ .Values.securityContext.runAsUser }}
+  readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+  allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+  capabilities:
+    drop:
+    {{- range .Values.securityContext.capabilities.drop }}
+    - {{ . }}
+    {{- end }}
+    {{- if .Values.securityContext.capabilities.add }}
+    add:
+    {{- range .Values.securityContext.capabilities.add }}
+    - {{ . }}
+    {{- end }}
+    {{- end }}
+{{- end }}
+
+{{/*
+Return the appropriate apiVersion for Ingress
+*/}}
+{{- define "ecommerce-app.ingress.apiVersion" -}}
+{{- if semverCompare ">=1.19-0" .Capabilities.KubeVersion.GitVersion -}}
+networking.k8s.io/v1
+{{- else if semverCompare ">=1.14-0" .Capabilities.KubeVersion.GitVersion -}}
+networking.k8s.io/v1beta1
+{{- else -}}
+extensions/v1beta1
+{{- end }}
+{{- end }}
+
+{{/*
+Return the appropriate apiVersion for HorizontalPodAutoscaler
+*/}}
+{{- define "ecommerce-app.hpa.apiVersion" -}}
+{{- if semverCompare ">=1.23-0" .Capabilities.KubeVersion.GitVersion -}}
+autoscaling/v2
+{{- else if semverCompare ">=1.16-0" .Capabilities.KubeVersion.GitVersion -}}
+autoscaling/v2beta2
+{{- else -}}
+autoscaling/v1
+{{- end }}
+{{- end }}
+
+{{/*
+Return monitoring annotations
+*/}}
+{{- define "ecommerce-app.monitoring.annotations" -}}
+{{- if .Values.monitoring.enabled }}
+prometheus.io/scrape: "true"
+prometheus.io/port: "{{ .Values.monitoring.metricsPort | default 9090 }}"
+prometheus.io/path: "/metrics"
+{{- if .Values.monitoring.applicationInsights.enabled }}
+azure.application-insights/instrumentation-key: {{ .Values.monitoring.applicationInsights.instrumentationKey | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Validate values
+*/}}
+{{- define "ecommerce-app.validateValues" -}}
+{{- if and .Values.frontend.enabled (not .Values.images.frontend.repository) }}
+  {{- fail "Frontend is enabled but images.frontend.repository is not set" }}
+{{- end }}
+{{- if and .Values.backend.enabled (not .Values.images.backend.repository) }}
+  {{- fail "Backend is enabled but images.backend.repository is not set" }}
+{{- end }}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) }}
+  {{- fail "Ingress is enabled but no hosts are configured" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return Azure Key Vault annotations
+*/}}
+{{- define "ecommerce-app.azureKeyVault.annotations" -}}
+{{- if .Values.azureKeyVault.enabled }}
+secrets-store.csi.k8s.io/secretProviderClass: {{ .Values.azureKeyVault.secretProviderClassName }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,112 @@
+# 🎓 Values específicos para ambiente STAGING
+# Staging simula producción pero con menos recursos
+
+global:
+  environment: "staging"
+  domain: "staging.ecommerce.example.com"
+  azure:
+    resourceGroup: "rg-ecommerce-staging"
+    keyVaultName: "kv-ecommerce-staging"
+  imageRegistry: "acrecommercestaging.azurecr.io"
+
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+    
+backend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "400m"
+      memory: "512Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+  env:
+    NODE_ENV: "staging"
+    LOG_LEVEL: "info"
+    
+redis:
+  persistence:
+    enabled: true
+    storageClass: "managed-premium"
+    size: "1Gi"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+      
+ingress:
+  enabled: true
+  className: "azure-application-gateway"
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"  # Staging cert
+  hosts:
+    - host: "staging.ecommerce.example.com"
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 80
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 80
+  tls:
+    - secretName: ecommerce-staging-tls
+      hosts:
+        - "staging.ecommerce.example.com"
+
+monitoring:
+  enabled: true
+  applicationInsights:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 60s  # Menos frecuente que prod
+  
+networkPolicies:
+  enabled: true  # Network policies habilitadas
+  
+podDisruptionBudget:
+  enabled: true
+  frontend:
+    minAvailable: 1
+  backend:
+    minAvailable: 1
+
+database:
+  host: "psql-ecommerce-staging.postgres.database.azure.com"
+  port: 5432
+  name: "ecommerce_staging"
+  sslMode: "require"
+  poolSize: 20
+
+# 🎓 Staging usa nodos regulares (no spot)
+nodeSelector:
+  nodepool-type: "user"
+  environment: "staging"
+  
+tolerations: []  # Sin tolerations para spot en staging

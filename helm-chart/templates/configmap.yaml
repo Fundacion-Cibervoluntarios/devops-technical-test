@@ -1,0 +1,27 @@
+{{- if .Values.configMap.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ecommerce-app.fullname" . }}-config
+  namespace: {{ .Values.namespace | default "ecommerce-app" }}
+  labels:
+    {{- include "ecommerce-app.labels" . | nindent 4 }}
+data:
+  environment: {{ .Values.global.environment | default "dev" | quote }}
+  app-name: {{ include "ecommerce-app.name" . | quote }}
+  log-level: {{ .Values.configMap.logLevel | default "info" | quote }}
+  {{- if .Values.frontend.enabled }}
+  frontend-port: {{ .Values.frontend.service.port | default 80 | quote }}
+  {{- end }}
+  {{- if .Values.backend.enabled }}
+  backend-port: {{ .Values.backend.service.port | default 8080 | quote }}
+  backend-url: "http://{{ include "ecommerce-app.fullname" . }}-backend:{{ .Values.backend.service.port | default 8080 }}"
+  {{- end }}
+  {{- if .Values.redis.enabled }}
+  redis-host: "{{ include "ecommerce-app.fullname" . }}-redis"
+  redis-port: {{ .Values.redis.service.port | default 6379 | quote }}
+  {{- end }}
+  {{- with .Values.configMap.additionalData }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end -}}

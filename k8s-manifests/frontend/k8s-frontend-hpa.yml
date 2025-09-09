@@ -1,0 +1,63 @@
+# 🎓 Frontend HorizontalPodAutoscaler
+# Auto-scaling basado en CPU como especifica el README
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ecommerce-frontend-hpa
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: frontend
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/instance: ecommerce-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ecommerce-frontend
+    
+  # 🎓 Réplicas min/max coherentes con Helm values
+  minReplicas: 3   # Mínimo 3 para HA
+  maxReplicas: 10  # Máximo 10 para controlar costos
+  
+  metrics:
+    # 🎓 CPU-based scaling (70% como especifica el README)
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70  # Scale at 70% CPU
+          
+    # 🎓 Memory-based scaling (adicional)
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80  # Scale at 80% memory
+          
+  # 🎓 Comportamiento de scaling más controlado
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 minutos de estabilización
+      policies:
+        - type: Percent
+          value: 50  # Scale down máximo 50% de pods
+          periodSeconds: 60
+        - type: Pods
+          value: 2   # O máximo 2 pods
+          periodSeconds: 60
+      selectPolicy: Min  # Usa la política más conservadora
+      
+    scaleUp:
+      stabilizationWindowSeconds: 60  # 1 minuto para scale up
+      policies:
+        - type: Percent
+          value: 100  # Puede duplicar pods
+          periodSeconds: 60
+        - type: Pods
+          value: 4    # O máximo 4 pods nuevos
+          periodSeconds: 60
+      selectPolicy: Max  # Usa la política más agresiva

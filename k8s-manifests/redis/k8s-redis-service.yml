@@ -1,0 +1,62 @@
+# 🎓 Redis Service
+# Service headless para StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-redis-service  # Nombre usado en backend env vars
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: redis
+    tier: cache
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/instance: ecommerce-app
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    # Monitoring
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "6379"
+spec:
+  type: ClusterIP  # ClusterIP como especifica el README
+  
+  selector:
+    app: ecommerce
+    component: redis
+    
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6379       # Puerto estándar de Redis
+      targetPort: 6379 # Puerto del container
+      
+  # 🎓 No session affinity para Redis
+  sessionAffinity: None
+  
+---
+# 🎓 Headless Service adicional para StatefulSet
+# Permite acceso directo a pods individuales si es necesario
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-redis-headless
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: redis
+    tier: cache
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service
+  
+  selector:
+    app: ecommerce
+    component: redis
+    
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6379
+      targetPort: 6379

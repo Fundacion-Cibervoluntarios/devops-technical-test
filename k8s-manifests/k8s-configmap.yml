@@ -1,0 +1,145 @@
+# 🎓 ConfigMap para configuración de la aplicación
+# Coherente con los valores definidos en Helm values.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ecommerce-app-config
+  namespace: ecommerce-app
+  labels:
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/instance: ecommerce-app
+    app.kubernetes.io/component: config
+    app.kubernetes.io/managed-by: kubectl
+data:
+  # Frontend configuration
+  REACT_APP_ENVIRONMENT: "dev"
+  REACT_APP_API_URL: "http://ecommerce-backend-service:8080"  # Coherente con el nombre del service
+  REACT_APP_VERSION: "1.0.0"
+  
+  # Backend configuration
+  NODE_ENV: "production"
+  PORT: "8080"
+  LOG_LEVEL: "info"
+  
+  # Database configuration (host coherente con Terraform outputs)
+  DATABASE_HOST: "psql-ecommerce-dev.postgres.database.azure.com"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "ecommerce_db"
+  DATABASE_SSL_MODE: "require"
+  DATABASE_POOL_SIZE: "10"
+  
+  # Redis configuration
+  REDIS_HOST: "ecommerce-redis-service"  # Coherente con el nombre del service
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  
+  # Azure configuration (coherente con Terraform)
+  AZURE_REGION: "West Europe"
+  AZURE_RESOURCE_GROUP: "rg-ecommerce-dev"
+  
+  # Application Insights (si está habilitado)
+  APPLICATIONINSIGHTS_ENABLED: "true"
+  
+  # Feature flags
+  ENABLE_METRICS: "true"
+  ENABLE_HEALTH_CHECK: "true"
+  ENABLE_SWAGGER: "false"  # Disabled in production
+  
+---
+# 🎓 Secret para datos sensibles
+# NOTA: En producción, estos valores vendrían de Azure Key Vault
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ecommerce-app-secrets
+  namespace: ecommerce-app
+  labels:
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/instance: ecommerce-app
+    app.kubernetes.io/component: secrets
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    # Para Azure Key Vault Secrets Provider
+    secrets-store.csi.k8s.io/secretProviderClass: "azure-keyvault-secrets"
+type: Opaque
+data:
+  # 🎓 NOTA: Estos son valores de ejemplo codificados en base64
+  # En producción, vendrían de Azure Key Vault
+  # echo -n 'valor' | base64
+  
+  # Database password (ejemplo: "DevOps2024Test!")
+  database-password: RGV2T3BzMjAyNFRlc3Qh
+  
+  # Redis password (ejemplo: "RedisPass123!")  
+  redis-password: UmVkaXNQYXNzMTIzIQ==
+  
+  # JWT Secret (ejemplo: "jwt-secret-key-2024")
+  jwt-secret: and0LXNlY3JldC1rZXktMjAyNA==
+  
+  # Application Insights Connection String (ejemplo)
+  appinsights-connection-string: SW5zdHJ1bWVudGF0aW9uS2V5PTEyMzQ1Njc4LTEyMzQtMTIzNC0xMjM0LTEyMzQ1Njc4OTBhYg==
+  
+---
+# 🎓 SecretProviderClass para Azure Key Vault integration
+# NOTA: Este recurso requiere que el Azure Key Vault Provider for Secrets Store CSI Driver
+# esté instalado en el cluster AKS. Se incluye como referencia pero está comentado.
+# Para habilitarlo:
+# 1. Instalar el CSI driver en AKS
+# 2. Descomentar las siguientes líneas
+# 3. Reemplazar ${CLIENT_ID} y ${AZURE_TENANT_ID} con valores reales
+
+# apiVersion: secrets-store.csi.x-k8s.io/v1
+# kind: SecretProviderClass
+# metadata:
+#   name: azure-keyvault-secrets
+#   namespace: ecommerce-app
+#   labels:
+#     app.kubernetes.io/name: ecommerce
+#     app.kubernetes.io/component: secrets-provider
+# spec:
+#   provider: azure
+#   
+#   # Sincronizar secretos como Kubernetes Secrets
+#   secretObjects:
+#     - secretName: ecommerce-app-secrets-synced
+#       type: Opaque
+#       data:
+#         - objectName: postgres-admin-password  # Nombre en Key Vault (desde Terraform)
+#           key: database-password               # Nombre en K8s Secret
+#         - objectName: redis-password
+#           key: redis-password
+#         - objectName: jwt-secret
+#           key: jwt-secret
+#         - objectName: app-insights-connection-string
+#           key: appinsights-connection-string
+#           
+#   parameters:
+#     usePodIdentity: "false"  # Usar Managed Identity
+#     useVMManagedIdentity: "true"
+#     userAssignedIdentityID: "${CLIENT_ID}"  # Se inyecta desde CI/CD
+#     
+#     # Key Vault name (coherente con Terraform)
+#     keyvaultName: "kv-ecommerce-dev"
+#     
+#     # Secrets to retrieve from Key Vault
+#     objects: |
+#       array:
+#         - |
+#           objectName: postgres-admin-password
+#           objectType: secret
+#           objectVersion: ""
+#         - |
+#           objectName: redis-password
+#           objectType: secret
+#           objectVersion: ""
+#         - |
+#           objectName: jwt-secret
+#           objectType: secret
+#           objectVersion: ""
+#         - |
+#           objectName: app-insights-connection-string
+#           objectType: secret
+#           objectVersion: ""
+#           
+#     # Tenant ID (coherente con Terraform)
+#     tenantId: "${AZURE_TENANT_ID}"  # Se inyecta desde CI/CD

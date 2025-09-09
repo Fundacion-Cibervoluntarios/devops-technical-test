@@ -1,0 +1,196 @@
+# TODO: Create namespace for the e-commerce application
+# Requirements:
+# - Name: ecommerce-app
+# - Labels for Azure Workload Identity
+# - Pod Security Standards: restricted level
+# - Proper resource quotas for the namespace
+
+# 🎓 SOLUCIÓN: Namespace con todos los requisitos
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce-app  # Nombre exacto del TODO
+  labels:
+    # TODO: Add appropriate labels
+    # name: ecommerce-app
+    # azure.workload.identity/use: "true"
+    # pod-security.kubernetes.io/enforce: restricted
+    # pod-security.kubernetes.io/audit: restricted
+    # pod-security.kubernetes.io/warn: restricted
+    
+    # 🎓 SOLUCIÓN: Labels según los TODOs
+    name: ecommerce-app
+    environment: dev  # Coherente con Terraform/Helm
+    managed-by: terraform
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/instance: ecommerce-app
+    app.kubernetes.io/managed-by: kubectl
+    
+    # Azure Workload Identity labels
+    azure.workload.identity/use: "true"
+    
+    # Pod Security Standards labels (restricted level como se pide)
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    
+  annotations:
+    # TODO: Add any necessary annotations
+    # 🎓 SOLUCIÓN: Annotations útiles
+    description: "E-commerce application namespace for DevOps technical test"
+    team: "devops"
+    cost-center: "engineering"
+    
+---
+# TODO: Create ResourceQuota for the namespace
+# Requirements:  
+# - CPU requests: 2 cores total
+# - Memory requests: 4Gi total
+# - CPU limits: 4 cores total
+# - Memory limits: 8Gi total
+# - PVCs: 5 maximum
+# - Services: 10 maximum
+# - Pods: 20 maximum
+
+# 🎓 SOLUCIÓN: ResourceQuota con los límites exactos pedidos
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ecommerce-quota
+  namespace: ecommerce-app
+spec:
+  hard:
+    # TODO: Define resource limits
+    # 🎓 SOLUCIÓN: Límites exactos según requisitos
+    requests.cpu: "2"           # 2 cores total para requests
+    requests.memory: "4Gi"       # 4Gi total para requests
+    limits.cpu: "4"              # 4 cores total para limits
+    limits.memory: "8Gi"         # 8Gi total para limits
+    persistentvolumeclaims: "5"  # Máximo 5 PVCs
+    services: "10"               # Máximo 10 services
+    pods: "20"                   # Máximo 20 pods
+    
+    # 🎓 EXTRAS: Límites adicionales para mejor control
+    services.loadbalancers: "2"
+    services.nodeports: "0"      # No NodePorts por seguridad
+    configmaps: "10"
+    secrets: "10"
+    
+---
+# TODO: Create NetworkPolicy for namespace isolation
+# Requirements:
+# - Allow ingress from Application Gateway
+# - Allow egress to internet for external APIs
+# - Allow internal communication between pods
+# - Deny all other traffic
+
+# 🎓 SOLUCIÓN: NetworkPolicy con aislamiento de namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: namespace-isolation
+  namespace: ecommerce-app
+spec:
+  # TODO: Define network policy rules
+  
+  # 🎓 SOLUCIÓN: Apply to all pods in namespace
+  podSelector: {}  # Selecciona todos los pods en el namespace
+  
+  policyTypes:
+    - Ingress
+    - Egress
+    
+  ingress:
+    # Allow from Application Gateway (coherente con Terraform)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-appgw
+        - ipBlock:
+            cidr: 10.0.3.0/24  # Application Gateway subnet desde Terraform
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+          
+    # Allow internal communication between pods
+    - from:
+        - podSelector: {}  # Todos los pods en el mismo namespace
+      ports:
+        - protocol: TCP
+          port: 3000  # Frontend
+        - protocol: TCP
+          port: 8080  # Backend
+        - protocol: TCP
+          port: 6379  # Redis
+          
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+          
+    # Allow internal pod-to-pod communication
+    - to:
+        - podSelector: {}
+          
+    # Allow access to Azure services
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32  # Block metadata service
+      ports:
+        - protocol: TCP
+          port: 443  # HTTPS for external APIs
+        - protocol: TCP
+          port: 5432  # PostgreSQL (Azure Database)
+          
+    # Allow access to Azure PostgreSQL (coherente con Terraform)
+    - to:
+        - ipBlock:
+            cidr: 10.0.2.0/24  # Database subnet desde Terraform
+      ports:
+        - protocol: TCP
+          port: 5432
+          
+---
+# 🎓 EXTRA: LimitRange para control granular de recursos
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ecommerce-limits
+  namespace: ecommerce-app
+spec:
+  limits:
+    # Límites por defecto para containers
+    - default:
+        cpu: "200m"
+        memory: "256Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      type: Container
+      
+    # Límites para Pods
+    - max:
+        cpu: "1"
+        memory: "1Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+      type: Pod
+      
+    # Límites para PVCs
+    - max:
+        storage: "10Gi"
+      min:
+        storage: "1Gi"
+      type: PersistentVolumeClaim
