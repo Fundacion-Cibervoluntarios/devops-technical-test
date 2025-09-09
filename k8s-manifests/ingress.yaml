@@ -1,0 +1,99 @@
+# Ingress Configuration for Azure Application Gateway
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-ingress
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: ingress
+  annotations:
+    # Azure Application Gateway annotations
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    appgw.ingress.kubernetes.io/cookie-based-affinity: "true"
+    appgw.ingress.kubernetes.io/request-timeout: "30"
+    appgw.ingress.kubernetes.io/use-private-ip: "false"
+    
+    # Health probe configuration
+    appgw.ingress.kubernetes.io/health-probe-path: "/health"
+    appgw.ingress.kubernetes.io/health-probe-interval: "30"
+    appgw.ingress.kubernetes.io/health-probe-timeout: "20"
+    appgw.ingress.kubernetes.io/health-probe-unhealthy-threshold: "3"
+    
+    # WAF configuration
+    appgw.ingress.kubernetes.io/waf-policy-for-path: "/subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.Network/applicationGatewayWebApplicationFirewallPolicies/waf-policy"
+    
+    # Certificate configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: http01
+spec:
+  tls:
+  - hosts:
+    - ecommerce.example.com
+    - www.ecommerce.example.com
+    secretName: ecommerce-tls
+  rules:
+  # Main domain
+  - host: ecommerce.example.com
+    http:
+      paths:
+      # Frontend route (default)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ecommerce-frontend
+            port:
+              number: 80
+      # API routes
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: ecommerce-backend
+            port:
+              number: 8080
+      # Health check route
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: ecommerce-backend
+            port:
+              number: 8080
+      # Metrics route
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: ecommerce-backend
+            port:
+              number: 8080
+  # WWW subdomain redirect
+  - host: www.ecommerce.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ecommerce-frontend
+            port:
+              number: 80
+---
+# IngressClass for Azure Application Gateway
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: azure-application-gateway
+  labels:
+    app.kubernetes.io/name: azure-application-gateway
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"
+spec:
+  controller: azure/application-gateway

@@ -1,0 +1,92 @@
+# 🎓 Values específicos para ambiente DEVELOPMENT
+# Estos valores sobrescriben los defaults de values.yaml
+
+global:
+  environment: "dev"
+  domain: "dev.ecommerce.example.com"
+  azure:
+    resourceGroup: "rg-ecommerce-dev"
+    keyVaultName: "kv-ecommerce-dev"
+  imageRegistry: "acrecommercedev.azurecr.io"
+
+# En dev usamos menos recursos
+frontend:
+  replicaCount: 2  # Menos réplicas en dev
+  resources:
+    requests:
+      cpu: "50m"      # Menos CPU en dev
+      memory: "64Mi"  # Menos memoria en dev
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+  autoscaling:
+    enabled: false  # No autoscaling en dev
+    
+backend:
+  replicaCount: 1  # Solo 1 réplica en dev
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+  autoscaling:
+    enabled: false
+  env:
+    NODE_ENV: "development"
+    LOG_LEVEL: "debug"  # Debug logging en dev
+    
+redis:
+  persistence:
+    enabled: false  # Sin persistencia en dev
+    size: "512Mi"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+      
+ingress:
+  enabled: true
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "false"  # No SSL en dev
+  hosts:
+    - host: "dev.ecommerce.local"  # Dominio local para dev
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: frontend
+            port: 80
+        - path: /api
+          pathType: Prefix
+          service:
+            name: backend
+            port: 80
+  tls: []  # Sin TLS en dev
+
+monitoring:
+  enabled: false  # Monitoring básico en dev
+  
+networkPolicies:
+  enabled: false  # Sin network policies en dev (facilita debugging)
+  
+podDisruptionBudget:
+  enabled: false  # No PDB en dev
+
+# 🎓 Configuración específica para desarrollo local
+database:
+  host: "psql-ecommerce-dev.postgres.database.azure.com"
+  port: 5432
+  name: "ecommerce_dev"
+  sslMode: "prefer"  # Menos estricto en dev
+
+# Tolerations para spot instances en dev (ahorro de costos)
+tolerations:
+  - key: "kubernetes.azure.com/scalesetpriority"
+    operator: "Equal"
+    value: "spot"
+    effect: "NoSchedule"

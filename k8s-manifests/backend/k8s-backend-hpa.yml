@@ -1,0 +1,63 @@
+# 🎓 Backend HorizontalPodAutoscaler
+# Auto-scaling basado en CPU > 70% como especifica el README
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ecommerce-backend-hpa
+  namespace: ecommerce-app
+  labels:
+    app: ecommerce
+    component: backend
+    app.kubernetes.io/name: ecommerce
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/instance: ecommerce-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ecommerce-backend
+    
+  # 🎓 Réplicas según README: min 2, max 5
+  minReplicas: 2  # README: 2 réplicas mínimo
+  maxReplicas: 5  # README: hasta 5 réplicas
+  
+  metrics:
+    # 🎓 CPU-based scaling (70% como especifica el README)
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70  # README: Scale based on CPU > 70%
+          
+    # 🎓 Memory-based scaling (adicional)
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+          
+  # 🎓 Comportamiento de scaling más controlado para backend
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 minutos de estabilización
+      policies:
+        - type: Percent
+          value: 25  # Scale down máximo 25% de pods (más conservador)
+          periodSeconds: 60
+        - type: Pods
+          value: 1   # O máximo 1 pod
+          periodSeconds: 60
+      selectPolicy: Min  # Usa la política más conservadora
+      
+    scaleUp:
+      stabilizationWindowSeconds: 30  # 30 segundos para scale up (más rápido)
+      policies:
+        - type: Percent
+          value: 50  # Puede aumentar 50% de pods
+          periodSeconds: 60
+        - type: Pods
+          value: 2   # O máximo 2 pods nuevos
+          periodSeconds: 60
+      selectPolicy: Max  # Usa la política más agresiva
